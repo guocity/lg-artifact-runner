@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import hotelData from './hyatt.json';
 
 declare global {
@@ -8,8 +8,58 @@ declare global {
   }
 }
 
+// Define interfaces
+interface Region {
+  key: string;
+  label: string;
+}
+
+interface Country {
+  label: string;
+}
+
+interface Geolocation {
+  latitude: number;
+  longitude: number;
+}
+
+interface Location {
+  region: Region;
+  geolocation: Geolocation;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  country?: Country;
+}
+
+interface Brand {
+  key: string;
+  label: string;
+}
+
+interface AwardCategory {
+  key: string;
+  label: string;
+}
+
+interface AwardType {
+  label: string;
+}
+
+interface Hotel {
+  name: string;
+  image: string;
+  url: string;
+  allInclusive?: string;
+  brand?: Brand;
+  description?: string;
+  location: Location;
+  awardCategory?: AwardCategory;
+  awardTypes?: AwardType[];
+}
+
 // Brand color mapping
-const brandColors = {
+const brandColors: { [key: string]: string } = {
   'UNBOUND': '#DAA520', // Luxury - Goldenrod
   // Luxury - orange gold#c65600
   'MIRAVAL': '#c65600',
@@ -58,7 +108,7 @@ const brandColors = {
 };
 
 // Add brand groups
-const brandGroups = {
+const brandGroups: { [key: string]: string[] } = {
   'Luxury': ['PARK', 'ALILA', 'MIRAVAL', 'IMPRESSION','UNBOUND'],
   'Lifestyle': ['ANDAZ', 'THOMPSON', 'JDV', 'DREAM', 'CAPTION', 'BREATHLESS', 'ME_AND_ALL'],
   'Inclusive': ['ZOETRY', 'ZIVA', 'ZILARA', 'DREAMS', 'VIVID', 'SUNSCAPE', 'ALUA','SECRETS'],
@@ -77,33 +127,33 @@ if (others.length > 0) {
   brandGroups['Others'] = ['NO_BRAND'];
 }
 
-const awardCategoryCounts = Object.values(hotelData).reduce((acc, hotel) => {
+const awardCategoryCounts: { [key: string]: number } = Object.values(hotelData).reduce((acc, hotel) => {
   const category = hotel.awardCategory?.key || 'No Category';
   acc[category] = (acc[category] || 0) + 1;
   return acc;
 }, {});
 
-const HotelMap = () => {
-  const [locations, setLocations] = useState([]);
-  const [visibleBrands, setVisibleBrands] = useState(() => {
+const HotelMap: React.FC = () => {
+  const [locations, setLocations] = useState<Hotel[]>([]);
+  const [visibleBrands, setVisibleBrands] = useState<string[]>(() => {
     const saved = localStorage.getItem('visibleBrands');
     return saved ? JSON.parse(saved) : Object.keys(brandColors);
   });
-  const [visibleAwardCategories, setVisibleAwardCategories] = useState(() => {
+  const [visibleAwardCategories, setVisibleAwardCategories] = useState<string[]>(() => {
     const saved = localStorage.getItem('visibleAwardCategories');
     return saved ? JSON.parse(saved) : [...Object.keys(awardCategoryCounts)];
   });
-  const [isAwardCategoryOpen, setIsAwardCategoryOpen] = useState(true);
-  const [isBrandOpen, setIsBrandOpen] = useState(true);
-  const [mapLoaded, setMapLoaded] = useState(false);
+  const [isAwardCategoryOpen, setIsAwardCategoryOpen] = useState<boolean>(true);
+  const [isBrandOpen, setIsBrandOpen] = useState<boolean>(true);
+  const [mapLoaded, setMapLoaded] = useState<boolean>(false);
   const [openedInfoWindows, setOpenedInfoWindows] = useState<string[]>(() => {
     const saved = localStorage.getItem('openedInfoWindows');
     return saved ? JSON.parse(saved) : [];
   });
-  const [isRegionOpen, setIsRegionOpen] = useState(true);
+  const [isRegionOpen, setIsRegionOpen] = useState<boolean>(true);
 
   // Add state for visible regions
-  const [visibleRegions, setVisibleRegions] = useState(() => {
+  const [visibleRegions, setVisibleRegions] = useState<string[]>(() => {
     const saved = localStorage.getItem('visibleRegions');
     const allRegions = Array.from(new Set(Object.values(hotelData).map(hotel => hotel.location.region.key)));
     return saved ? JSON.parse(saved) : allRegions;
@@ -122,7 +172,7 @@ const HotelMap = () => {
   }, [visibleRegions]);
 
   // Handle region toggle
-  const handleRegionToggle = (region) => {
+  const handleRegionToggle = (region: string) => {
     setVisibleRegions((prev) =>
       prev.includes(region) ? prev.filter((r) => r !== region) : [...prev, region]
     );
@@ -167,7 +217,7 @@ const HotelMap = () => {
           setMapLoaded(true);
         });
 
-        script.addEventListener('error', (e) => {
+        script.addEventListener('error', (e: Event) => {
           console.error('Error loading Google Maps:', e);
         });
 
@@ -192,13 +242,13 @@ const HotelMap = () => {
     }
   }, [visibleBrands, visibleAwardCategories, visibleRegions, mapLoaded]);
 
-  const handleBrandToggle = (brand) => {
+  const handleBrandToggle = (brand: string) => {
     setVisibleBrands((prev) =>
       prev.includes(brand) ? prev.filter((b) => b !== brand) : [...prev, brand]
     );
   };
 
-  const handleAwardCategoryToggle = (category) => {
+  const handleAwardCategoryToggle = (category: string) => {
     setVisibleAwardCategories((prev) =>
       prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
     );
@@ -220,7 +270,7 @@ const HotelMap = () => {
     setVisibleAwardCategories([]);
   };
 
-  const brandCounts = Object.values(hotelData).reduce((acc, hotel) => {
+  const brandCounts: { [key: string]: number } = Object.values(hotelData).reduce((acc, hotel) => {
     const brand = hotel.brand?.key || 'NO_BRAND';
     acc[brand] = (acc[brand] || 0) + 1;
     return acc;
@@ -238,7 +288,7 @@ const HotelMap = () => {
     const defaultCenter = savedCenter ? JSON.parse(savedCenter) : { lat: 39.8283, lng: -98.5795 };
     const defaultZoom = savedZoom ? JSON.parse(savedZoom) : 4;
 
-    const map = new window.google.maps.Map(document.getElementById('map'), {
+    const map = new window.google.maps.Map(document.getElementById('map') as HTMLElement, {
       zoom: defaultZoom,
       center: defaultCenter,
       styles: [
@@ -259,7 +309,7 @@ const HotelMap = () => {
     });
 
     // Add markers for each location
-    Object.entries(hotelData).forEach(([key, hotel]) => {
+    Object.entries(hotelData).forEach(([key, hotel]: [string, Hotel]) => {
       const brandKey = hotel.brand?.key || 'NO_BRAND';
       const awardCategory = hotel.awardCategory?.key || 'No Category';
       const regionKey = hotel.location.region?.key || 'No Region';
@@ -269,7 +319,7 @@ const HotelMap = () => {
         !visibleRegions.includes(regionKey)
       ) return;
 
-      const position = {
+      const position: google.maps.LatLngLiteral = {
         lat: hotel.location.geolocation.latitude,
         lng: hotel.location.geolocation.longitude
       };
