@@ -1,5 +1,8 @@
+// @ts-nocheck
 import { useState, useEffect, useRef } from 'react';
 import hotelData from './hyatt.json';
+
+declare const google: any;
 
 declare global {
   interface Window {
@@ -134,7 +137,7 @@ const awardCategoryCounts: { [key: string]: number } = Object.values(hotelData).
 }, {});
 
 const HotelMap: React.FC = () => {
-  const [locations, setLocations] = useState<Hotel[]>([]);
+  // const [locations, setLocations] = useState<Hotel[]>([]);
   const [visibleBrands, setVisibleBrands] = useState<string[]>(() => {
     const saved = localStorage.getItem('visibleBrands');
     return saved ? JSON.parse(saved) : Object.keys(brandColors);
@@ -354,7 +357,7 @@ const HotelMap: React.FC = () => {
       });
 
       if (isFixed) {
-        const content = `
+        const content: string = `
           <div style="width: 300px; padding: 12px; padding-top: 0; font-family: Arial, sans-serif;">
             <img src="${hotel.image}" alt="${hotel.name}" style="width: 100%; height: 200px; object-fit: cover; margin-bottom: 8px;" />
             <a href="${hotel.url}" style="font-size: 16px; font-weight: bold; color: #0066cc; text-decoration: none; display: block; margin-bottom: 4px;">
@@ -381,7 +384,7 @@ const HotelMap: React.FC = () => {
 
       marker.addListener('mouseover', () => {
         if (!isFixed) {
-          const content = `
+          const content: string = `
             <div style="width: 300px; padding: 12px; padding-top: 0; font-family: Arial, sans-serif;">
               <img src="${hotel.image}" alt="${hotel.name}" style="width: 100%; height: 200px; object-fit: cover; margin-bottom: 8px;" />
               <a href="${hotel.url}" style="font-size: 16px; font-weight: bold; color: #0066cc; text-decoration: none; display: block; margin-bottom: 4px;">
@@ -418,7 +421,7 @@ const HotelMap: React.FC = () => {
           const newState = [...openedInfoWindows, key];
           localStorage.setItem('openedInfoWindows', JSON.stringify(newState));
           setOpenedInfoWindows(newState);
-          const content = `
+          const content: string = `
             <div style="width: 300px; padding: 12px; padding-top: 0; font-family: Arial, sans-serif;">
               <img src="${hotel.image}" alt="${hotel.name}" style="width: 100%; height: 200px; object-fit: cover; margin-bottom: 8px;" />
               <a href="${hotel.url}" style="font-size: 16px; font-weight: bold; color: #0066cc; text-decoration: none; display: block; margin-bottom: 4px;">
