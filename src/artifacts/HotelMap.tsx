@@ -206,13 +206,12 @@ const HotelMap: React.FC = () => {
 
   // Add a ref to store markers by brand
   const markersRef = useRef<{ [brand: string]: google.maps.Marker[] }>({});
-
   // Initialize map when component mounts
   useEffect(() => {
     const initGoogleMaps = () => {
       if (typeof window.google === 'undefined') {
         const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyC81wzVXNw2rzWExz8p7a5ChbTwVmBRvtw`;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_mapkey}`;
         script.async = true;
         script.defer = true;
         
