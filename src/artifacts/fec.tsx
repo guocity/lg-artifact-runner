@@ -1,39 +1,81 @@
 import React, { useState, useEffect } from 'react';
-import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
+import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
 import Papa from 'papaparse';
 import _ from 'lodash';
-import csvData from './schedule_a-2025-03-11T18_14_18.csv?raw'; // Import as raw text
+import csvData from './schedule_a-2025-03-11T18_14_18.csv?raw';
+
+// Define interfaces for your data
+interface FECRecord {
+  contribution_receipt_date?: string;
+  contribution_receipt_amount?: number;
+  committee_name?: string;
+  contributor_state?: string;
+}
+
+interface StateContribution {
+  state: string;
+  count: number;
+}
+
+interface CommitteeContribution {
+  name: string;
+  fullName: string;
+  count: number;
+}
+
+interface ContributionRange {
+  range: string;
+  count: number;
+}
+
+interface SummaryStats {
+  totalRecords: number;
+  totalAmount: number;
+  avgAmount: number;
+  minAmount: number;
+  maxAmount: number;
+}
+
+interface TimeSeriesEntry {
+  date: string;
+  [key: string]: number | string;
+}
 
 const FECDataAnalysis = () => {
-  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [stateContributions, setStateContributions] = useState([]);
-  const [topCommittees, setTopCommittees] = useState([]);
-  const [contributionRanges, setContributionRanges] = useState([]);
-  const [summaryStats, setSummaryStats] = useState({});
-  const [timeSeriesData, setTimeSeriesData] = useState([]);
-  const [yearFilter, setYearFilter] = useState('all');
+  const [error, setError] = useState<string | null>(null);
+  const [stateContributions, setStateContributions] = useState<StateContribution[]>([]);
+  const [topCommittees, setTopCommittees] = useState<CommitteeContribution[]>([]);
+  const [contributionRanges, setContributionRanges] = useState<ContributionRange[]>([]);
+  const [summaryStats, setSummaryStats] = useState<SummaryStats>({
+    totalRecords: 0,
+    totalAmount: 0,
+    avgAmount: 0,
+    minAmount: 0,
+    maxAmount: 0
+  });
+  const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesEntry[]>([]);
+  const [yearFilter, setYearFilter] = useState<string>('all');
 
   useEffect(() => {
     const parseData = () => {
       try {
-        Papa.parse(csvData, {
+        Papa.parse<FECRecord>(csvData, {
           header: true,
           dynamicTyping: true,
           skipEmptyLines: true,
           complete: (results) => {
-            setData(results.data);
-            processData(results.data);
+            const parsedData = results.data;
+            processData(parsedData);
             setLoading(false);
           },
-          error: (error) => {
-            setError(`Error parsing CSV: ${error}`);
+          error: (error: Error) => {
+            setError(`Error parsing CSV: ${error.message}`);
             setLoading(false);
           }
         });
       } catch (error) {
-        setError(`Error processing CSV: ${error}`);
+        setError(`Error processing CSV: ${(error as Error).message}`);
         setLoading(false);
       }
     };
@@ -41,9 +83,8 @@ const FECDataAnalysis = () => {
     parseData();
   }, []);
 
-  const processTimeSeriesData = (rawData) => {
-    // Extract contribution dates and amounts
-    const contributionsByDate = [];
+  const processTimeSeriesData = (rawData: FECRecord[]) => {
+    const contributionsByDate: { date: string; committee: string; amount: number }[] = [];
     
     rawData.forEach(record => {
       if (record.contribution_receipt_date && record.contribution_receipt_amount && record.committee_name) {
@@ -58,8 +99,7 @@ const FECDataAnalysis = () => {
       }
     });
     
-    // Get top 5 committees by total amount
-    const committeeAmounts = {};
+    const committeeAmounts: { [key: string]: number } = {};
     contributionsByDate.forEach(item => {
       committeeAmounts[item.committee] = (committeeAmounts[item.committee] || 0) + item.amount;
     });
@@ -69,24 +109,19 @@ const FECDataAnalysis = () => {
       .slice(0, 5)
       .map(entry => entry[0]);
       
-    // Group by date and committee
     const groupedData = _.groupBy(contributionsByDate, 'date');
     
-    // Format for chart
     const chartData = Object.entries(groupedData).map(([date, contributions]) => {
-      const entry = { date };
+      const entry: TimeSeriesEntry = { date };
       
-      // Initialize with zero values for all top committees
       topCommitteesByAmount.forEach(committee => {
         const shortName = committee.length > 15 ? committee.substring(0, 12) + '...' : committee;
         entry[shortName] = 0;
         entry[`${shortName}_fullName`] = committee;
       });
       
-      // Add 'Others' category
       entry['Others'] = 0;
       
-      // Sum contributions by committee
       contributions.forEach(contribution => {
         const committee = contribution.committee;
         const amount = contribution.amount;
@@ -102,45 +137,40 @@ const FECDataAnalysis = () => {
       return entry;
     });
     
-    // Sort by date
     chartData.sort((a, b) => a.date.localeCompare(b.date));
     
     setTimeSeriesData(chartData);
   };
 
-  const processData = (rawData) => {
-    // Calculate summary statistics
+  const processData = (rawData: FECRecord[]) => {
     const validContributions = rawData.filter(record => record.contribution_receipt_amount);
-    const totalAmount = validContributions.reduce((sum, record) => sum + record.contribution_receipt_amount, 0);
+    const totalAmount = validContributions.reduce((sum, record) => sum + (record.contribution_receipt_amount || 0), 0);
     const avgAmount = totalAmount / validContributions.length;
-    const minAmount = Math.min(...validContributions.map(record => record.contribution_receipt_amount));
-    const maxAmount = Math.max(...validContributions.map(record => record.contribution_receipt_amount));
+    const minAmount = Math.min(...validContributions.map(record => record.contribution_receipt_amount || 0));
+    const maxAmount = Math.max(...validContributions.map(record => record.contribution_receipt_amount || 0));
     
     setSummaryStats({
       totalRecords: rawData.length,
-      totalAmount: totalAmount,
-      avgAmount: avgAmount,
-      minAmount: minAmount,
-      maxAmount: maxAmount
+      totalAmount,
+      avgAmount,
+      minAmount,
+      maxAmount
     });
     
-    // Process state contributions
-    const stateData = {};
+    const stateData: { [key: string]: number } = {};
     rawData.forEach(record => {
       if (record.contributor_state) {
         stateData[record.contributor_state] = (stateData[record.contributor_state] || 0) + 1;
       }
     });
     
-    const stateArray = Object.entries(stateData).map(([state, count]) => ({
-      state,
-      count
-    })).sort((a, b) => b.count - a.count);
+    const stateArray = Object.entries(stateData)
+      .map(([state, count]) => ({ state, count }))
+      .sort((a, b) => b.count - a.count);
     
     setStateContributions(stateArray);
     
-    // Process top committees
-    const committeeData = {};
+    const committeeData: { [key: string]: number } = {};
     rawData.forEach(record => {
       if (record.committee_name) {
         committeeData[record.committee_name] = (committeeData[record.committee_name] || 0) + 1;
@@ -158,8 +188,7 @@ const FECDataAnalysis = () => {
     
     setTopCommittees(committeeArray);
     
-    // Process contribution ranges
-    const ranges = {
+    const ranges: { [key: string]: number } = {
       "Under $100": 0,
       "$100 - $499": 0,
       "$500 - $999": 0,
@@ -168,7 +197,7 @@ const FECDataAnalysis = () => {
     };
     
     validContributions.forEach(record => {
-      const amount = record.contribution_receipt_amount;
+      const amount = record.contribution_receipt_amount || 0;
       if (amount < 100) ranges["Under $100"]++;
       else if (amount < 500) ranges["$100 - $499"]++;
       else if (amount < 1000) ranges["$500 - $999"]++;
@@ -183,11 +212,9 @@ const FECDataAnalysis = () => {
     
     setContributionRanges(rangesArray);
     
-    // Process time series data
     processTimeSeriesData(rawData);
   };
 
-  // Filter time series data by year
   const getFilteredTimeSeriesData = () => {
     if (yearFilter === 'all') {
       return timeSeriesData;
@@ -195,9 +222,8 @@ const FECDataAnalysis = () => {
     return timeSeriesData.filter(item => item.date.startsWith(yearFilter));
   };
 
-  // Get available years for filter
   const getYears = () => {
-    const years = new Set();
+    const years = new Set<string>();
     timeSeriesData.forEach(item => {
       years.add(item.date.split('-')[0]);
     });
@@ -216,6 +242,7 @@ const FECDataAnalysis = () => {
 
   return (
     <div className="p-4">
+      {/* Rest of your JSX remains the same */}
       <h1 className="text-2xl font-bold mb-6">FEC Campaign Finance Data Analysis</h1>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -223,10 +250,10 @@ const FECDataAnalysis = () => {
           <h2 className="text-xl font-semibold mb-4">Summary Statistics</h2>
           <div className="space-y-2">
             <p><span className="font-medium">Total Records:</span> {summaryStats.totalRecords}</p>
-            <p><span className="font-medium">Total Contributions:</span> ${summaryStats.totalAmount?.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
-            <p><span className="font-medium">Average Contribution:</span> ${summaryStats.avgAmount?.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
-            <p><span className="font-medium">Minimum Contribution:</span> ${summaryStats.minAmount?.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
-            <p><span className="font-medium">Maximum Contribution:</span> ${summaryStats.maxAmount?.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
+            <p><span className="font-medium">Total Contributions:</span> ${summaryStats.totalAmount.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
+            <p><span className="font-medium">Average Contribution:</span> ${summaryStats.avgAmount.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
+            <p><span className="font-medium">Minimum Contribution:</span> ${summaryStats.minAmount.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
+            <p><span className="font-medium">Maximum Contribution:</span> ${summaryStats.maxAmount.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
           </div>
         </div>
         
