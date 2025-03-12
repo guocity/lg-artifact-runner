@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // Keep this as it's required for JSX
 import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
 import Papa from 'papaparse';
 import _ from 'lodash';
 import csvData from './schedule_a-2025-03-11T18_14_18.csv?raw';
 
-// Define interfaces for your data
+// Interfaces remain the same
 interface FECRecord {
   contribution_receipt_date?: string;
   contribution_receipt_amount?: number;
@@ -116,11 +116,11 @@ const FECDataAnalysis = () => {
       
       topCommitteesByAmount.forEach(committee => {
         const shortName = committee.length > 15 ? committee.substring(0, 12) + '...' : committee;
-        entry[shortName] = 0;
+        entry[shortName] = 0; // Initialize as number
         entry[`${shortName}_fullName`] = committee;
       });
       
-      entry['Others'] = 0;
+      entry['Others'] = 0; // Initialize as number
       
       contributions.forEach(contribution => {
         const committee = contribution.committee;
@@ -128,9 +128,9 @@ const FECDataAnalysis = () => {
         
         if (topCommitteesByAmount.includes(committee)) {
           const shortName = committee.length > 15 ? committee.substring(0, 12) + '...' : committee;
-          entry[shortName] += amount;
+          entry[shortName] = (entry[shortName] as number) + amount; // Type assertion to number
         } else {
-          entry['Others'] += amount;
+          entry['Others'] = (entry['Others'] as number) + amount; // Type assertion to number
         }
       });
       
@@ -242,7 +242,6 @@ const FECDataAnalysis = () => {
 
   return (
     <div className="p-4">
-      {/* Rest of your JSX remains the same */}
       <h1 className="text-2xl font-bold mb-6">FEC Campaign Finance Data Analysis</h1>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -272,11 +271,11 @@ const FECDataAnalysis = () => {
                   dataKey="count"
                   label={({ range, count }) => `${range}: ${count}`}
                 >
-                  {contributionRanges.map((entry, index) => (
+                  {contributionRanges.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value, name, props) => [`${value} contributions`, props.payload.range]} />
+                <Tooltip formatter={(value, _, props) => [`${value} contributions`, props.payload.range]} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
@@ -301,7 +300,7 @@ const FECDataAnalysis = () => {
                 return item ? item.fullName : label;
               }} />
               <Bar dataKey="count" fill="#8884d8">
-                {topCommittees.map((entry, index) => (
+                {topCommittees.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Bar>
@@ -376,7 +375,7 @@ const FECDataAnalysis = () => {
               <YAxis />
               <Tooltip formatter={(value) => [`${value} contributions`]} />
               <Bar dataKey="count" fill="#8884d8">
-                {stateContributions.map((entry, index) => (
+                {stateContributions.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Bar>
