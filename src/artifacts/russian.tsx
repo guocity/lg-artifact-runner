@@ -101,6 +101,7 @@ const PropertyDataDashboard = () => {
   const modalRef = useRef(null);
   const ITEMS_PER_PAGE = 50;
   const [isCopying, setIsCopying] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' }); // Add sort state
 
   const [summaries, setSummaries] = useState({
     salePrice: 0,
@@ -108,9 +109,61 @@ const PropertyDataDashboard = () => {
     totalAssmnt: 0,
     taxes1: 0
   });
-// @ts-nocheck
+
+  // --- Sorting Function ---
+  const sortData = useCallback((dataToSort) => {
+      if (!sortConfig.key) {
+          return dataToSort;
+      }
+
+      const sortedData = [...dataToSort]; // Create a copy to avoid mutating the original
+
+      sortedData.sort((a, b) => {
+          let valueA = a[sortConfig.key];
+          let valueB = b[sortConfig.key];
+
+          // Handle date sorting
+          if (sortConfig.key === 'Sale Date') {
+              valueA = valueA ? valueA.getTime() : 0;  // Convert to timestamps for comparison, handle nulls
+              valueB = valueB ? valueB.getTime() : 0;
+          }
+           // Handle string sorting (case-insensitive)
+            else if (typeof valueA === 'string') {
+                valueA = valueA.toLowerCase();
+                valueB = valueB.toLowerCase();
+            }
+
+
+          if (valueA < valueB) {
+              return sortConfig.direction === 'ascending' ? -1 : 1;
+          }
+          if (valueA > valueB) {
+              return sortConfig.direction === 'ascending' ? 1 : -1;
+          }
+          return 0;
+      });
+
+      return sortedData;
+  }, [sortConfig]);
+
+    // --- Request Sort Function (updates sortConfig) ---
+    const requestSort = (key) => {
+        let direction = 'ascending';
+        if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    // --- UseEffect to apply sorting ---
+      useEffect(() => {
+        const sortedData = sortData(filteredData);
+        setDisplayedData(sortedData.slice(0, page * ITEMS_PER_PAGE));
+    }, [filteredData, sortConfig, page, sortData]);
+
+
+
   const processData = useCallback((parsedData) => {
-    // @ts-nocheck
     const cleanedData = parsedData.map(row => {
       let saleDate = null;
       if (row['Sale Date'] && row['Sale Date'] !== '0000-00-00') {
@@ -124,7 +177,6 @@ const PropertyDataDashboard = () => {
 
       const municipalityCode = parseInt(row['Municipality']);
       const municipalityName = MUNICIPALITY_MAP.hasOwnProperty(municipalityCode)
-      // @ts-nocheck
         ? MUNICIPALITY_MAP?.[municipalityCode]
         : row['Municipality'];
 
@@ -146,21 +198,18 @@ const PropertyDataDashboard = () => {
     setData(cleanedData);
     setFilteredData(cleanedData);
     setDisplayedData(cleanedData.slice(0, ITEMS_PER_PAGE));
-// @ts-nocheck
+
     const uniqueMunicipalities = _.uniq(cleanedData.map(row => row['Municipality'])).filter(Boolean).sort();
-    // @ts-nocheck
     setMunicipalities(uniqueMunicipalities);
-// @ts-nocheck
+
     const years = cleanedData.map(row => row['Yr. Built']).filter(year => year > 0);
     const minYear = Math.min(...years);
     const maxYear = Math.max(...years);
     setYearBounds([minYear, maxYear]);
     setYearRange([minYear, maxYear]);
-// @ts-nocheck
+
     const validDates = cleanedData.map(row => row['Sale Date'])
-    // @ts-nocheck
       .filter(date => date && !isNaN(date.getTime()))
-      // @ts-nocheck
       .map(date => date.getTime());
     if (validDates.length > 0) {
       const minDate = Math.min(...validDates);
@@ -168,13 +217,13 @@ const PropertyDataDashboard = () => {
       setDateBounds([minDate, maxDate]);
       setDateRange([minDate, maxDate]);
     }
-// @ts-nocheck
+
     const prices = cleanedData.map(row => row['Sale Price']).filter(price => !isNaN(price));
     const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
     const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
     setSalePriceBounds([minPrice, maxPrice]);
     setSalePriceRange([minPrice, maxPrice]);
-// @ts-nocheck
+
     const allTaxes = cleanedData.map(row => row['Taxes 1']).filter(tax => !isNaN(tax));
     const minTax = allTaxes.length > 0 ? Math.min(...allTaxes) : 0;
     const maxTax = allTaxes.length > 0 ? Math.max(...allTaxes) : 0;
@@ -193,9 +242,7 @@ const PropertyDataDashboard = () => {
         processData(results.data);
         setIsLoading(false);
       },
-      // @ts-nocheck
       error: (err) => {
-        // @ts-nocheck
         setError(`Error parsing CSV: ${err.message}`);
         setIsLoading(false);
       }
@@ -214,7 +261,7 @@ const PropertyDataDashboard = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, [filteredData, page, isLoading]);
-// @ts-nocheck
+
   const calculateSummaries = useCallback((dataToSum) => {
     setSummaries({
       salePrice: _.sumBy(dataToSum, 'Sale Price'),
@@ -228,7 +275,6 @@ const PropertyDataDashboard = () => {
     const filtered = data.filter(row => {
       const municipalityMatch = selectedMunicipalities.length === 0 || selectedMunicipalities.includes(row['Municipality']);
       const yearMatch = row['Yr. Built'] >= yearRange?.[0] && row['Yr. Built'] <= yearRange?.[1];
-      // @ts-nocheck
       const dateMatch = row['Sale Date'] ? row['Sale Date'].getTime() >= dateRange?.[0] && row['Sale Date'].getTime() <= dateRange?.[1] : true;
       const priceMatch = row['Sale Price'] >= salePriceRange?.[0] && row['Sale Price'] <= salePriceRange?.[1];
       const taxesMatch = row['Taxes 1'] >= taxes1Range?.[0] && row['Taxes 1'] <= taxes1Range?.[1];
@@ -237,39 +283,41 @@ const PropertyDataDashboard = () => {
     });
 
     setFilteredData(filtered);
-    setDisplayedData(filtered.slice(0, ITEMS_PER_PAGE));
-    setPage(1);
+        // Reset to first page after filter to display correct sorted result
+        setPage(1);
+    setDisplayedData(sortData(filtered).slice(0, ITEMS_PER_PAGE));
+
     calculateSummaries(filtered);
-  }, [data, selectedMunicipalities, yearRange, dateRange, salePriceRange, taxes1Range, calculateSummaries]);
+  }, [data, selectedMunicipalities, yearRange, dateRange, salePriceRange, taxes1Range, calculateSummaries, sortData]);
 
   useEffect(() => {
     applyFilters();
   }, [applyFilters]);
 
   const loadMoreData = useCallback(() => {
-    const nextPage = page + 1;
-    const newData = filteredData.slice(0, nextPage * ITEMS_PER_PAGE);
-    setDisplayedData(newData);
-    setPage(nextPage);
-  }, [filteredData, page]);
-// @ts-nocheck
+        const nextPage = page + 1;
+        const newData = sortData(filteredData).slice(0, nextPage * ITEMS_PER_PAGE);
+        setDisplayedData(newData);
+        setPage(nextPage);
+  }, [filteredData, page, sortData]);
+
   const formatCurrency = (value) => new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
-// @ts-nocheck
+
   const formatNumber = (value) => new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   }).format(value);
-// @ts-nocheck
+
   const formatDateForSlider = (timestamp) => {
     const date = new Date(timestamp);
     return date.toLocaleDateString();
   };
-// @ts-nocheck
+
   const handleRowClick = useCallback((row) => {
     setSelectedRow(row);
   }, []);
@@ -277,11 +325,9 @@ const PropertyDataDashboard = () => {
   const closeModal = useCallback(() => {
     setSelectedRow(null);
   }, []);
-// @ts-nocheck
+
   const handleMunicipalitySelect = useCallback((municipality) => {
-    // @ts-nocheck
     setSelectedMunicipalities((prev) => {
-      // @ts-nocheck
       if (prev.includes(municipality)) {
         return prev.filter((m) => m !== municipality);
       } else {
@@ -299,13 +345,11 @@ const PropertyDataDashboard = () => {
     }
 
     const table = tableRef.current;
-    // @ts-nocheck
     const rows = table.querySelectorAll('tr');
     let csv = [];
 
     for (const row of rows) {
       const cells = Array.from(row.querySelectorAll('th, td'));
-      // @ts-nocheck
       const rowData = cells.map(cell => cell.innerText);
       csv.push(rowData.join(','));
     }
@@ -327,14 +371,14 @@ const PropertyDataDashboard = () => {
     setDateRange(dateBounds);
     setSalePriceRange(salePriceBounds);
     setTaxes1Range(taxes1Bounds);
-  }, [yearBounds, dateBounds, salePriceBounds, taxes1Bounds, setSelectedMunicipalities, setYearRange, setDateRange, setSalePriceRange, setTaxes1Range]);
-// @ts-nocheck
+      setSortConfig({key: null, direction: 'ascending'}) //reset sort
+  }, [yearBounds, dateBounds, salePriceBounds, taxes1Bounds]);
+
   const handleModalClickOutside = useCallback((event) => {
-    // @ts-nocheck
     if (selectedRow && modalRef.current && !modalRef.current.contains(event.target)) {
       closeModal();
     }
-  }, [selectedRow, closeModal, modalRef]);
+  }, [selectedRow, closeModal]);
 
   useEffect(() => {
     document.addEventListener('mousedown', handleModalClickOutside);
@@ -342,6 +386,16 @@ const PropertyDataDashboard = () => {
       document.removeEventListener('mousedown', handleModalClickOutside);
     };
   }, [handleModalClickOutside]);
+
+
+    // --- Get Sorting Arrow ---
+    const getSortArrow = (key) => {
+        if (sortConfig.key === key) {
+            return sortConfig.direction === 'ascending' ? '↑' : '↓';
+        }
+        return ''; // No arrow if not sorted by this column
+    };
+
 
   if (isLoading) return <div className="text-center p-8">Loading property data...</div>;
   if (error) return <div className="text-red-500 p-8">{error}</div>;
@@ -421,7 +475,6 @@ const PropertyDataDashboard = () => {
               value={dateRange}
               pearling
               minDistance={86400000} // Minimum 1 day difference in milliseconds
-              // @ts-nocheck
               formatValue={formatDateForSlider}
             />
             <div className="flex justify-between text-sm mt-2">
@@ -443,7 +496,6 @@ const PropertyDataDashboard = () => {
               value={salePriceRange}
               pearling
               minDistance={1000}
-              // @ts-nocheck
               formatValue={formatCurrency}
             />
             <div className="flex justify-between text-sm mt-2">
@@ -465,7 +517,6 @@ const PropertyDataDashboard = () => {
               value={taxes1Range}
               pearling
               minDistance={100}
-              // @ts-nocheck
               formatValue={formatCurrency}
             />
             <div className="flex justify-between text-sm mt-2">
@@ -502,42 +553,60 @@ const PropertyDataDashboard = () => {
 
       {/* Data Table */}
       <div ref={tableRef}>
-        <table className="min-w-full bg-white border">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="p-2 border">Municipality</th>
-              <th className="p-2 border">Property Location</th>
-              <th className="p-2 border">Owner's Name</th>
-              <th className="p-2 border">Yr. Built</th>
-              <th className="p-2 border">Sale Date</th>
-              <th className="p-2 border">Sale Price</th>
-              <th className="p-2 border">Acreage</th>
-              <th className="p-2 border">Total Assmnt</th>
-              <th className="p-2 border">Taxes 1</th>
-            </tr>
-          </thead>
-          <tbody>
-            {displayedData.map((row, index) => (
-              <tr
-                key={index}
-                className="hover:bg-gray-100 cursor-pointer"
-                onClick={() => handleRowClick(row)}
-              >
-                <td className="p-2 border">{row['Municipality']}</td>
-                <td className="p-2 border">{row['Property Location']}</td>
-                <td className="p-2 border">{row["Owner's Name"]}</td>
-                <td className="p-2 border">{row['Yr. Built']}</td>
-                <td className="p-2 border">
-                  {row['Sale Date']?.toLocaleDateString() || ''}
-                </td>
-                <td className="p-2 border text-right">{formatCurrency(row['Sale Price'])}</td>
-                <td className="p-2 border text-right">{formatNumber(row['Acreage'])}</td>
-                <td className="p-2 border text-right">{formatCurrency(row['Total Assmnt'])}</td>
-                <td className="p-2 border text-right">{formatCurrency(row['Taxes 1'])}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          <table className="min-w-full bg-white border">
+              <thead>
+                  <tr className="bg-gray-100">
+                      <th className="p-2 border cursor-pointer" onClick={() => requestSort('Municipality')}>
+                          Municipality {getSortArrow('Municipality')}
+                      </th>
+                      <th className="p-2 border cursor-pointer" onClick={() => requestSort('Property Location')}>
+                          Property Location {getSortArrow('Property Location')}
+                      </th>
+                      <th className="p-2 border cursor-pointer" onClick={() => requestSort("Owner's Name")}>
+                          Owner's Name {getSortArrow("Owner's Name")}
+                      </th>
+                      <th className="p-2 border cursor-pointer" onClick={() => requestSort('Yr. Built')}>
+                          Yr. Built {getSortArrow('Yr. Built')}
+                      </th>
+                      <th className="p-2 border cursor-pointer" onClick={() => requestSort('Sale Date')}>
+                          Sale Date {getSortArrow('Sale Date')}
+                      </th>
+                      <th className="p-2 border cursor-pointer" onClick={() => requestSort('Sale Price')}>
+                          Sale Price {getSortArrow('Sale Price')}
+                      </th>
+                      <th className="p-2 border cursor-pointer" onClick={() => requestSort('Acreage')}>
+                          Acreage {getSortArrow('Acreage')}
+                      </th>
+                      <th className="p-2 border cursor-pointer" onClick={() => requestSort('Total Assmnt')}>
+                          Total Assmnt {getSortArrow('Total Assmnt')}
+                      </th>
+                      <th className="p-2 border cursor-pointer" onClick={() => requestSort('Taxes 1')}>
+                          Taxes 1 {getSortArrow('Taxes 1')}
+                      </th>
+                  </tr>
+              </thead>
+              <tbody>
+                  {displayedData.map((row, index) => (
+                      <tr
+                          key={index}
+                          className="hover:bg-gray-100 cursor-pointer"
+                          onClick={() => handleRowClick(row)}
+                      >
+                          <td className="p-2 border">{row['Municipality']}</td>
+                          <td className="p-2 border">{row['Property Location']}</td>
+                          <td className="p-2 border">{row["Owner's Name"]}</td>
+                          <td className="p-2 border">{row['Yr. Built']}</td>
+                          <td className="p-2 border">
+                              {row['Sale Date']?.toLocaleDateString() || ''}
+                          </td>
+                          <td className="p-2 border text-right">{formatCurrency(row['Sale Price'])}</td>
+                          <td className="p-2 border text-right">{formatNumber(row['Acreage'])}</td>
+                          <td className="p-2 border text-right">{formatCurrency(row['Total Assmnt'])}</td>
+                          <td className="p-2 border text-right">{formatCurrency(row['Taxes 1'])}</td>
+                      </tr>
+                  ))}
+              </tbody>
+          </table>
 
         {displayedData.length < filteredData.length && (
           <div className="mt-2 text-sm text-gray-500">
